@@ -66,14 +66,13 @@ class IdWorkerOnSharedMemoryTest extends PHPUnit_Framework_TestCase
         // unique ids
         $actual = array_values(array_unique($ids));
 
-        $messages = "";
-
-        foreach (array_diff($ids, $actual) as $duplicate) {
-            $idValue = $this->idWorker->read($duplicate);
-            $messages .= "value:{$idValue->asString()},timestamp:{$idValue->timestamp},sequence:{$idValue->sequence}\n";
+        $message = "";
+        foreach (array_filter(array_count_values($ids), function ($v) { return --$v; }) as $id => $count) {
+            $idValue = $this->idWorker->read($id);
+            $message .= "value:{$idValue->asString()}, timestamp: {$idValue->timestamp}, sequence: {$idValue->sequence}, times: {$count}\n";
         }
 
-        $this->assertCount($expectedCount, $actual, "The duplicate ID is as follows:\n{$messages}");
+        $this->assertCount($expectedCount, $actual, "The duplicate ID is as follows:\n{$message}");
     }
 
     /**
@@ -110,7 +109,7 @@ class IdWorkerOnSharedMemoryTest extends PHPUnit_Framework_TestCase
                     $sharedFile = $sharedFilePrefix . getmypid();
                     $ids = array();
                     for ($j = 0; $j < $loopCount; $j++) {
-                        $ids[] = $this->idWorker->generate();
+                        $ids[] = $this->idWorker->generate()->toInt();
                     }
                     // Output the result to a temporary file
                     file_put_contents($sharedFile, serialize($ids));
@@ -140,15 +139,14 @@ class IdWorkerOnSharedMemoryTest extends PHPUnit_Framework_TestCase
         // unique ids
         $actual = array_values(array_unique($ids));
 
-        $messages = "";
-
-        foreach (array_diff($ids, $actual) as $duplicate) {
-            $idValue = $this->idWorker->read($duplicate);
-            $messages .= "value:{$idValue->asString()},timestamp:{$idValue->timestamp},sequence:{$idValue->sequence}\n";
+        $message = "";
+        foreach (array_filter(array_count_values($ids), function ($v) { return --$v; }) as $id => $count) {
+            $idValue = $this->idWorker->read($id);
+            $message .= "value:{$idValue->asString()}, timestamp: {$idValue->timestamp}, sequence: {$idValue->sequence}, times: {$count}\n";
         }
 
         $this->assertCount($loopCount * $forkCount,
                            $actual,
-                           "The duplicate ID is as follows:\n{$messages}");
+                           "The duplicate ID is as follows:\n{$message}");
     }
 }

@@ -2,10 +2,10 @@
 
 namespace Adachi\Choco\Domain\IdWorker\Redis;
 
+use Adachi\Choco\Domain\IdConfig\IdConfig;
 use Adachi\Choco\Domain\IdValue\Element\RegionId;
 use Adachi\Choco\Domain\IdValue\Element\ServerId;
 use Adachi\Choco\Domain\IdValue\IdValue;
-use Adachi\Choco\Domain\IdConfig\IdConfig;
 use Adachi\Choco\Domain\IdWorker\AbstractIdWorker;
 use Adachi\Choco\Domain\IdWorker\IdWorkerInterface;
 use Predis\Client;
@@ -58,26 +58,17 @@ class IdWorkerOnRedis extends AbstractIdWorker implements IdWorkerInterface
      */
     public function generate()
     {
+        $script = <<<LUA
+if redis.call('exists', KEYS[1]) == 1 then
+    return redis.call('incr', KEYS[1])
+else
+    redis.call('set', KEYS[1], 0, 'PX', 1000)
+    return 0
+end
+LUA;
+
         $timestamp = $this->generateTimestamp();
-
-        $sequence = 0;
-
-        if (! is_null($this->lastTimestamp) && $timestamp->equals($this->lastTimestamp)) {
-            // Get
-            $sequence = $this->redis->incr(self::REDIS_SEQUENCE_KEY) & $this->config->getSequenceMask();
-
-            if ($sequence === 0) {
-                usleep(1000);
-                $timestamp = $this->generateTimestamp();
-            }
-        } else {
-            // Reset sequence if timestamp is different from last one.
-            $sequence = 0;
-            $this->redis->set(self::REDIS_SEQUENCE_KEY, $sequence);
-        }
-
-        // Update lastTimestamp
-        $this->lastTimestamp = $timestamp;
+        $sequence = $this->redis->eval($script, 1, $timestamp);
 
         return new IdValue($timestamp, $this->regionId, $this->serverId, $sequence, $this->calculate($timestamp, $this->regionId, $this->serverId, $sequence));
     }

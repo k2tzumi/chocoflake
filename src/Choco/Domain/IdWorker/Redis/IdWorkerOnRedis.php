@@ -70,6 +70,11 @@ LUA;
         $timestamp = $this->generateTimestamp();
         $sequence = $this->redis->eval($script, 1, $timestamp);
 
+        if ($sequence !== ($sequence & $this->config->getSequenceMask())) {
+            // Sequence overflowed, rerun
+            return $this->generate();
+        }
+
         return new IdValue($timestamp, $this->regionId, $this->serverId, $sequence, $this->calculate($timestamp, $this->regionId, $this->serverId, $sequence));
     }
 }
